@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terminal Subtitle Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Word-by-Word Subtitle Generator v1.0</h1>
+        
+        <div id="alert-container"></div>
+        
+        <div class="terminal-output">
+            <span class="terminal-prompt">user@subtitle-gen:~$</span> <span class="terminal-command">./start_generator.sh</span>
+        </div>
+        
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="file-upload">
+                <label for="audio-file">select_file</label>
+                <input type="file" name="audio" id="audio-file" accept=".mp3,.wav,.m4a,.flac,.ogg" required>
+                <span id="file-name">No file chosen</span>
+            </div>
+            
+            <button type="submit" id="submit-btn">process_audio</button>
+        </form>
+        
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>Transcribing audio... Please wait...</p>
+        </div>
+        
+        <div id="download-section" class="hidden">
+            <a id="download-link" href="#" download>
+                <button id="download-btn">download_subtitles</button>
+            </a>
+        </div>
+        
+        <div class="footer">
+            Supported formats: .mp3, .wav, .m4a, .flac, .ogg | Output: .srt file | Max file size: 16MB
+        </div>
+    </div>
+
+    <script>
+        // Terminal cursor blinking effect
+        let cursorBlink = document.createElement('style');
+        cursorBlink.innerHTML = `
+            .terminal-prompt::after {
+                content: "";
+                display: inline-block;
+                width: 8px;
+                height: 15px;
+                background: #00ff00;
+                margin-left: 5px;
+                animation: blink 1s step-end infinite;
+            }
+        `;
+        document.head.appendChild(cursorBlink);
+        
+        // Display selected filename
+        document.getElementById('audio-file').addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : 'No file chosen';
+            document.getElementById('file-name').textContent = fileName;
+        });
+
+        // Handle form submission with AJAX
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const form = this;
+            const formData = new FormData(form);
+            const terminalOutput = document.querySelector('.terminal-output');
+            const loadingDiv = document.getElementById('loading');
+            const submitBtn = document.getElementById('submit-btn');
+            const alertContainer = document.getElementById('alert-container');
+            const downloadSection = document.getElementById('download-section');
+            const downloadLink = document.getElementById('download-link');
+
+            // Clear previous alerts
+            alertContainer.innerHTML = '';
+
+            // Show loading spinner
+            loadingDiv.classList.remove('hidden');
+            submitBtn.disabled = true;
+
+            // Add terminal processing messages
+            const processingMessages = [
+                "Initializing whisper engine...",
+                "Reading audio buffers...",
+                "Starting transcription process...",
+                "Converting speech to text..."
+            ];
+            
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < processingMessages.length) {
+                    const messageEl = document.createElement('div');
+                    messageEl.innerHTML = `<span class="terminal-prompt">system@subtitle-gen:~$</span> <span class="terminal-log">${processingMessages[i]}</span>`;
+                    terminalOutput.appendChild(messageEl);
+                    i++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 1500);
+
+            // Send AJAX request
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Stop loading spinner and terminal messages
+                clearInterval(interval);
+                loadingDiv.classList.add('hidden');
+                submitBtn.disabled = false;
+
+                // Display alert message
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${data.status}`;
+                alertDiv.textContent = data.message;
+                alertContainer.appendChild(alertDiv);
+
+                // If successful, show download button
+                if (data.status === 'success') {
+                    downloadSection.classList.remove('hidden');
+                    downloadLink.href = data.download_url;
+                }
+            })
+            .catch(error => {
+                // Handle network errors
+                clearInterval(interval);
+                loadingDiv.classList.add('hidden');
+                submitBtn.disabled = false;
+
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-error';
+                alertDiv.textContent = `Network error: ${error.message}`;
+                alertContainer.appendChild(alertDiv);
+            });
+        });
+    </script>
+</body>
+</html>
